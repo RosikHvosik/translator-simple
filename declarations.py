@@ -1,6 +1,6 @@
 # declarations.py
 import re
-from .types_mapper import extract_type_and_name, map_type
+from types_mapper import extract_type_and_name, map_type
 
 def handle_variable_declarations(code: str) -> str:
     # Обработка простых объявлений: int x;
