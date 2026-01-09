@@ -1,8 +1,3 @@
-"""
-test_translator.py
-Набор тестов для проверки транслятора
-"""
-
 from main import translate_c_to_python
 
 def test_basic():

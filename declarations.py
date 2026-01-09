@@ -1,14 +1,7 @@
-# declarations.py - УПРОЩЕННОЕ ИСПРАВЛЕНИЕ
 import re
 from types_mapper import map_type
 
 def handle_variable_declarations(code: str) -> str:
-    """
-    Обработка простых объявлений переменных
-    КРИТИЧНО: НЕ обрабатываем переменные внутри for(...) !
-    """
-    
-    # Обрабатываем построчно, пропуская строки с for(
     lines = code.split('\n')
     result_lines = []
     
@@ -17,16 +10,12 @@ def handle_variable_declarations(code: str) -> str:
         if 'for(' in line or 'for (' in line:
             result_lines.append(line)
             continue
-        
-        # Обработка объявлений с инициализацией: int x = 5;
         pattern_init = r'(\w+(?:\s+\w+)*|\w+\*)\s+(\w+)\s*=\s*([^;]+);'
         
         def replace_var_decl_init(match):
             full_type = match.group(1).strip()
             var_name = match.group(2)
             init_value = match.group(3).strip()
-            
-            # Проверяем, что это не return
             if full_type == 'return':
                 return match.group(0)
             
@@ -35,14 +24,12 @@ def handle_variable_declarations(code: str) -> str:
         
         line = re.sub(pattern_init, replace_var_decl_init, line)
         
-        # Обработка простых объявлений: int x;
         pattern = r'(\w+(?:\s+\w+)*|\w+\*)\s+(\w+)\s*;'
         
         def replace_var_decl(match):
             full_type = match.group(1).strip()
             var_name = match.group(2)
             
-            # Проверяем, что это не ключевые слова
             if full_type in ['return', 'break', 'continue']:
                 return match.group(0)
             
@@ -68,8 +55,6 @@ def handle_variable_declarations(code: str) -> str:
     return '\n'.join(result_lines)
 
 def handle_array_declarations(code: str) -> str:
-    """Обработка массивов"""
-    # Обработка массивов: int arr[10];
     pattern = r'(\w+)\s+(\w+)\s*\[(\d+)\]\s*;'
     def replace_array_decl(match):
         elem_type = match.group(1)
@@ -86,7 +71,6 @@ def handle_array_declarations(code: str) -> str:
     
     code = re.sub(pattern, replace_array_decl, code)
     
-    # Обработка массивов с инициализацией: int arr[] = {1, 2, 3};
     pattern_init = r'(\w+)\s+(\w+)\s*\[\s*\]\s*=\s*\{([^}]+)\};'
     def replace_array_init(match):
         elem_type = match.group(1)
@@ -100,8 +84,6 @@ def handle_array_declarations(code: str) -> str:
     return code
 
 def handle_const_declarations(code: str) -> str:
-    """Обработка const"""
-    # const int x = 5; -> x = 5  # const
     pattern = r'const\s+(\w+)\s+(\w+)\s*=\s*([^;]+);'
     def replace_const_decl(match):
         c_type = match.group(1)
@@ -115,7 +97,6 @@ def handle_const_declarations(code: str) -> str:
     return code
 
 def process_declarations(code: str) -> str:
-    """Обработка всех объявлений"""
     code = handle_const_declarations(code)
     code = handle_array_declarations(code)
     code = handle_variable_declarations(code)

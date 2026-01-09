@@ -1,4 +1,3 @@
-# utils.py
 import re
 from typing import List, Tuple
 
@@ -33,10 +32,8 @@ def restore_char_literals(code: str, chars: List[str]) -> str:
     return result
 
 def normalize_whitespace(code: str) -> str:
-    # Сохраняем отступы в многострочных блоках
     lines = code.split('\n')
     normalized_lines = []
     for line in lines:
-        # Убираем лишние пробелы в начале и конце, но сохраняем структуру
         normalized_lines.append(line.rstrip())
     return '\n'.join(normalized_lines)

@@ -1,4 +1,3 @@
-# types_mapper.py
 from typing import Dict, Set
 
 C_TO_PYTHON_TYPES: Dict[str, str] = {
@@ -35,13 +34,11 @@ def extract_type_and_name(declaration: str) -> tuple:
     if len(parts) < 2:
         return None, None
     
-    # Обработка указателей
     type_parts = []
     var_name = None
     
     for i, part in enumerate(parts):
         if '*' in part:
-            # Указатель может быть вида int* или int *
             if part.replace('*', '').strip() and not type_parts:
                 type_parts.append(part.replace('*', ''))
                 type_parts.append('*')

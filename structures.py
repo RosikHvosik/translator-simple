@@ -1,23 +1,15 @@
-# structures.py - ФИНАЛЬНОЕ ИСПРАВЛЕНИЕ
 import re
 from types_mapper import map_type
 
 def handle_structs(code: str) -> str:
-    """
-    Обработка структур C
-    КРИТИЧНО: Используем non-greedy match для полей!
-    """
-    # ВАЖНО: [^}]*? - non-greedy, берет МИНИМУМ до первой }
     struct_pattern = r'struct\s+(\w+)\s*\{([^}]*?)\}\s*;'
     
     def replace_struct(match):
         struct_name = match.group(1)
         fields_content = match.group(2)
         
-        # Разбиваем поля на строки
         fields = [field.strip() for field in fields_content.split(';') if field.strip()]
         
-        # Начинаем определение класса
         result = [f'class {struct_name}:']
         result.append('    def __init__(self):')
         
@@ -25,13 +17,11 @@ def handle_structs(code: str) -> str:
             for field in fields:
                 field = field.strip()
                 if field:
-                    # Извлекаем тип и имя поля
                     field_parts = field.split()
                     if len(field_parts) >= 2:
                         field_type = ' '.join(field_parts[:-1])
                         field_name = field_parts[-1].replace('*', '')
                         
-                        # Маппим тип
                         python_type = map_type(field_type)
                         if python_type == 'int':
                             result.append(f'        self.{field_name} = 0')
@@ -46,23 +36,19 @@ def handle_structs(code: str) -> str:
         else:
             result.append('        pass')
         
-        # КРИТИЧНО: ДВЕ пустые строки для разделения от следующего кода!
         return '\n'.join(result) + '\n\n'
     
     code = re.sub(struct_pattern, replace_struct, code, flags=re.DOTALL)
     
-    # Обработка использования struct: struct Person p;
     struct_usage_pattern = r'struct\s+(\w+)\s+(\w+)\s*;'
     code = re.sub(struct_usage_pattern, r'\2 = \1()', code)
-    
-    # Обработка указателей на struct: struct Person* p;
+
     struct_ptr_pattern = r'struct\s+(\w+)\s*\*\s*(\w+)\s*;'
     code = re.sub(struct_ptr_pattern, r'\2 = \1()', code)
     
     return code
 
 def handle_unions(code: str) -> str:
-    """В Python нет union, преобразуем в класс"""
     union_pattern = r'union\s+(\w+)\s*\{([^}]*?)\}\s*;'
     
     def replace_union(match):
@@ -91,14 +77,12 @@ def handle_unions(code: str) -> str:
     return code
 
 def handle_enums(code: str) -> str:
-    """Обработка enum"""
     enum_pattern = r'enum\s+(\w+)\s*\{([^}]*?)\}\s*;'
     
     def replace_enum(match):
         enum_name = match.group(1)
         values_content = match.group(2)
         
-        # Разбиваем значения
         values = [val.strip() for val in values_content.split(',') if val.strip()]
         
         result = [f'class {enum_name}:']
@@ -107,7 +91,6 @@ def handle_enums(code: str) -> str:
         for value in values:
             value = value.strip()
             if '=' in value:
-                # Обработка присвоений: VALUE = 5
                 name, val = value.split('=')
                 name = name.strip()
                 val = val.strip()
@@ -117,7 +100,6 @@ def handle_enums(code: str) -> str:
                 except ValueError:
                     counter += 1
             else:
-                # Автоматическая нумерация
                 result.append(f'    {value} = {counter}')
                 counter += 1
         
@@ -125,14 +107,12 @@ def handle_enums(code: str) -> str:
     
     code = re.sub(enum_pattern, replace_enum, code, flags=re.DOTALL)
     
-    # Обработка использования enum: enum Color c;
     enum_usage_pattern = r'enum\s+(\w+)\s+(\w+)\s*;'
     code = re.sub(enum_usage_pattern, r'\2 = \1()', code)
     
     return code
 
 def process_structures(code: str) -> str:
-    """Обработка всех структур данных"""
     code = handle_enums(code)
     code = handle_unions(code)
     code = handle_structs(code)

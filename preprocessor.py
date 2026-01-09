@@ -1,4 +1,3 @@
-# preprocessor.py
 import re
 from typing import Tuple
 
@@ -9,7 +8,6 @@ def remove_defines(code: str) -> str:
     return re.sub(r'#define\s+\w+\s+.*?(?=\n|$)', '', code, flags=re.MULTILINE)
 
 def remove_macros(code: str) -> str:
-    # Удаляем простые макросы
     code = re.sub(r'#\s*ifdef\s+.*?(?=\n)', '', code, flags=re.MULTILINE)
     code = re.sub(r'#\s*ifndef\s+.*?(?=\n)', '', code, flags=re.MULTILINE)
     code = re.sub(r'#\s*endif\s*(?=\n)', '', code, flags=re.MULTILINE)
@@ -18,9 +16,7 @@ def remove_macros(code: str) -> str:
     return code
 
 def remove_comments(code: str) -> str:
-    # Удаляем однострочные комментарии
     code = re.sub(r'//.*?$', '', code, flags=re.MULTILINE)
-    # Удаляем многострочные комментарии
     code = re.sub(r'/\*.*?\*/', '', code, flags=re.DOTALL)
     return code
 
@@ -32,8 +28,6 @@ def preprocess(code: str) -> str:
     return code.strip()
 
 def normalize_code_structure(code: str) -> str:
-    # Убираем лишние пустые строки
     code = re.sub(r'\n\s*\n\s*\n', '\n\n', code)
-    # Убираем лишние пробелы в начале и конце
     code = code.strip()
     return code
