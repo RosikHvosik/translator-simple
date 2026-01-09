@@ -5,10 +5,10 @@ from types_mapper import map_type
 def handle_structs(code: str) -> str:
     """
     Обработка структур C
-    struct Name { fields }; -> class Name: ...
+    КРИТИЧНО: Используем non-greedy match для полей!
     """
-    # Паттерн для struct с телом
-    struct_pattern = r'struct\s+(\w+)\s*\{([^}]*)\};'
+    # ВАЖНО: [^}]*? - non-greedy, берет МИНИМУМ до первой }
+    struct_pattern = r'struct\s+(\w+)\s*\{([^}]*?)\}\s*;'
     
     def replace_struct(match):
         struct_name = match.group(1)
@@ -31,7 +31,7 @@ def handle_structs(code: str) -> str:
                         field_type = ' '.join(field_parts[:-1])
                         field_name = field_parts[-1].replace('*', '')
                         
-                        # Маппим тип и добавляем инициализацию
+                        # Маппим тип
                         python_type = map_type(field_type)
                         if python_type == 'int':
                             result.append(f'        self.{field_name} = 0')
@@ -46,8 +46,8 @@ def handle_structs(code: str) -> str:
         else:
             result.append('        pass')
         
-        # КРИТИЧНО: Добавляем пустую строку после класса!
-        return '\n'.join(result) + '\n'
+        # КРИТИЧНО: ДВЕ пустые строки для разделения от следующего кода!
+        return '\n'.join(result) + '\n\n'
     
     code = re.sub(struct_pattern, replace_struct, code, flags=re.DOTALL)
     
@@ -63,7 +63,7 @@ def handle_structs(code: str) -> str:
 
 def handle_unions(code: str) -> str:
     """В Python нет union, преобразуем в класс"""
-    union_pattern = r'union\s+(\w+)\s*\{([^}]*)\};'
+    union_pattern = r'union\s+(\w+)\s*\{([^}]*?)\}\s*;'
     
     def replace_union(match):
         union_name = match.group(1)
@@ -85,14 +85,14 @@ def handle_unions(code: str) -> str:
         else:
             result.append('        pass')
         
-        return '\n'.join(result) + '\n'
+        return '\n'.join(result) + '\n\n'
     
     code = re.sub(union_pattern, replace_union, code, flags=re.DOTALL)
     return code
 
 def handle_enums(code: str) -> str:
     """Обработка enum"""
-    enum_pattern = r'enum\s+(\w+)\s*\{([^}]*)\};'
+    enum_pattern = r'enum\s+(\w+)\s*\{([^}]*?)\}\s*;'
     
     def replace_enum(match):
         enum_name = match.group(1)
@@ -121,7 +121,7 @@ def handle_enums(code: str) -> str:
                 result.append(f'    {value} = {counter}')
                 counter += 1
         
-        return '\n'.join(result) + '\n'
+        return '\n'.join(result) + '\n\n'
     
     code = re.sub(enum_pattern, replace_enum, code, flags=re.DOTALL)
     

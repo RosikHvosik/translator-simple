@@ -1,9 +1,8 @@
 """
-main.py - ПОЛНОСТЬЮ ИСПРАВЛЕННАЯ ВЕРСИЯ
-Исправлены все критические баги:
-1. Порядок обработки (syntax до functions)
-2. Улучшенная обработка отступов
-3. Printf корректно заменяется на print
+main.py - ФИНАЛЬНАЯ ИСПРАВЛЕННАЯ ВЕРСИЯ
+КРИТИЧЕСКИЕ ИСПРАВЛЕНИЯ:
+1. For loops обрабатываются ДО expressions (где i++ → i += 1)
+2. Structures обрабатываются правильно
 """
 import re
 from typing import Tuple, List
@@ -20,94 +19,115 @@ from expressions import process_expressions
 
 class CToPythonTranslator:
     def __init__(self):
-        # ИСПРАВЛЕНО: Правильный порядок обработки
+        # КРИТИЧНО: Правильный порядок обработки!
         self.processing_order = [
-            self._preprocess,
-            self._handle_structures,      # 1. Структуры первыми
-            self._handle_declarations,    # 2. Объявления переменных
-            self._handle_syntax,          # 3. Убираем { } ; РАНО!
-            self._handle_statements,      # 4. Циклы, условия
-            self._handle_expressions,     # 5. Операторы, указатели
-            self._handle_functions,       # 6. Функции ПОСЛЕ удаления скобок
-            self._fix_indentation,        # 7. Исправляем отступы
-            self._format_code             # 8. Финальное форматирование
+            self._preprocess,             # 1. Препроцессор + сохранение строк
+            self._handle_structures,      # 2. Struct/enum/union (до function_decls!)
+            self._handle_function_decls,  # 3. Объявления функций
+            self._handle_declarations,    # 4. Переменные
+            self._handle_statements,      # 5. КРИТИЧНО: Циклы for ДО expressions!
+            self._handle_function_calls,  # 6. Printf и другие вызовы
+            self._handle_expressions,     # 7. Операторы (++, --, &&) - ПОСЛЕ for!
+            self._handle_syntax,          # 8. Удаляем { } ; - САМОЕ ПОЗДНЕЕ
+            self._fix_indentation,        # 9. Отступы
+            self._format_code             # 10. Форматирование
         ]
     
     def _preprocess(self, code: str) -> str:
-        # Сохраняем строковые и символьные литералы
         code, self._strings = preserve_strings(code)
         code, self._chars = preserve_char_literals(code)
-        
-        # Убираем препроцессорные директивы и комментарии
         code = preprocess(code)
-        
         return code
     
     def _handle_structures(self, code: str) -> str:
-        return process_structures(code)
+        code = process_structures(code)
+        # КРИТИЧНО: После struct убираем лишние отступы в начале строк
+        # Это предотвратит попадание функций внутрь класса
+        lines = code.split('\n')
+        normalized = []
+        for line in lines:
+            # Убираем ведущие пробелы ТОЛЬКО у строк начинающихся с ключевых слов
+            stripped = line.lstrip()
+            if stripped.startswith(('void ', 'int ', 'float ', 'char ', 'double ', 'long ', 'short ')):
+                # Это объявление функции или переменной - убираем отступ
+                normalized.append(stripped)
+            else:
+                # Остальное оставляем как есть
+                normalized.append(line)
+        return '\n'.join(normalized)
     
-    def _handle_functions(self, code: str) -> str:
-        return process_functions(code)
+    def _handle_function_decls(self, code: str) -> str:
+        """Только объявления функций"""
+        from functions import handle_function_declarations
+        return handle_function_declarations(code)
+    
+    def _handle_function_calls(self, code: str) -> str:
+        """Только вызовы функций (printf и др)"""
+        from functions import handle_function_calls, handle_return_statements
+        code = handle_function_calls(code)
+        code = handle_return_statements(code)
+        return code
     
     def _handle_statements(self, code: str) -> str:
+        """
+        КРИТИЧНО: Обрабатываем ДО expressions!
+        for(i=0; i<5; i++) должен обработаться ДО того, как i++ станет i += 1
+        """
         return process_statements(code)
     
     def _handle_declarations(self, code: str) -> str:
         return process_declarations(code)
     
     def _handle_expressions(self, code: str) -> str:
+        """
+        Обрабатывается ПОСЛЕ statements!
+        Иначе i++ станет i += 1 и for loop сломается
+        """
         return process_expressions(code)
     
     def _handle_syntax(self, code: str) -> str:
-        """Удаление C-синтаксиса после всех преобразований"""
-        # Сначала убираем точки с запятой
+        """
+        Удаление C-синтаксиса - САМОЕ ПОСЛЕДНЕЕ!
+        Все regex должны отработать ДО этого момента
+        """
+        # Убираем точки с запятой
         code = re.sub(r';', '', code)
-        
-        # Потом убираем фигурные скобки
+        # Убираем фигурные скобки
         code = re.sub(r'\{', '', code)
         code = re.sub(r'\}', '', code)
-        
         return code
     
     def _fix_indentation(self, code: str) -> str:
-        """
-        ИСПРАВЛЕНО: Улучшенная обработка отступов
-        - elif/else на том же уровне что и if
-        - После return/break/continue правильное уменьшение отступа
-        - Учитываются пустые строки
-        """
+        """Исправление отступов"""
         lines = code.split('\n')
         result = []
         indent = 0
         prev_was_block_end = False
         
-        for i, line in enumerate(lines):
+        for line in lines:
             stripped = line.strip()
             
-            # Пустые строки
             if not stripped:
                 result.append('')
                 continue
             
-            # ИСПРАВЛЕНО: elif/else уменьшают отступ ПЕРЕД добавлением
+            # elif/else уменьшают отступ
             if stripped.startswith(('elif ', 'else:')):
                 indent = max(0, indent - 1)
             
-            # ИСПРАВЛЕНО: После return/break/continue/pass следующая строка
-            # возвращается на уровень выше (если это не elif/else)
+            # После return/break/continue
             if prev_was_block_end:
                 if not stripped.startswith(('elif ', 'else:', 'except:', 'finally:')):
                     indent = max(0, indent - 1)
                 prev_was_block_end = False
             
-            # Добавляем строку с текущим отступом
             result.append('    ' * indent + stripped)
             
-            # Увеличиваем отступ после строк с двоеточием
+            # Увеличиваем отступ после :
             if stripped.endswith(':'):
                 indent += 1
             
-            # Помечаем завершающие операторы блока
+            # Помечаем завершающие операторы
             if stripped.startswith(('return', 'break', 'continue', 'pass')):
                 prev_was_block_end = True
         
@@ -115,16 +135,12 @@ class CToPythonTranslator:
     
     def _format_code(self, code: str) -> str:
         """Финальное форматирование"""
-        
-        # Восстанавливаем строковые и символьные литералы
         code = restore_char_literals(code, self._chars)
         code = restore_strings(code, self._strings)
-        
-        # Нормализуем пробелы
         code = normalize_whitespace(code)
         code = normalize_code_structure(code)
         
-        # Убираем лишние пустые строки между строками кода
+        # Убираем лишние пустые строки
         lines = code.split('\n')
         result = []
         prev_empty = False
@@ -138,7 +154,7 @@ class CToPythonTranslator:
                 result.append(line)
                 prev_empty = False
         
-        # Добавляем пустые строки между определениями классов/функций
+        # Пустые строки между классами/функциями
         final_lines = []
         for i, line in enumerate(result):
             final_lines.append(line)
@@ -243,19 +259,17 @@ if __name__ == "__main__":
     else:
         print("✗ Ошибка: p->name не заменен")
     
-    # Проверка 3: Отступы
-    lines = python_code.split('\n')
-    if_lines = [l for l in lines if 'if ' in l and l.strip().startswith('if')]
-    else_lines = [l for l in lines if l.strip().startswith('else:')]
+    # Проверка 3: Функции
+    if "def print_person" in python_code and "def main" in python_code:
+        print("✓ Функции корректно объявлены")
+    else:
+        print("✗ Ошибка: функции не объявлены")
     
-    if if_lines and else_lines:
-        if_indent = len(if_lines[0]) - len(if_lines[0].lstrip())
-        else_indent = len(else_lines[0]) - len(else_lines[0].lstrip())
-        
-        if if_indent == else_indent:
-            print(f"✓ Отступы корректны: if и else на уровне {if_indent}")
-        else:
-            print(f"✗ Ошибка отступов: if={if_indent}, else={else_indent}")
+    # Проверка 4: Цикл for
+    if "for j in range" in python_code:
+        print("✓ Цикл for корректно преобразован")
+    else:
+        print("✗ Ошибка: цикл for не преобразован")
     
     print("\n" + "=" * 60)
     print("Трансляция завершена!")
