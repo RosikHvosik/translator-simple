@@ -1,6 +1,9 @@
 """
-main.py - ПОЛНОСТЬЮ ПЕРЕРАБОТАННАЯ ВЕРСИЯ
-Исправлены все критические баги
+main.py - ПОЛНОСТЬЮ ИСПРАВЛЕННАЯ ВЕРСИЯ
+Исправлены все критические баги:
+1. Порядок обработки (syntax до functions)
+2. Улучшенная обработка отступов
+3. Printf корректно заменяется на print
 """
 import re
 from typing import Tuple, List
@@ -17,16 +20,17 @@ from expressions import process_expressions
 
 class CToPythonTranslator:
     def __init__(self):
+        # ИСПРАВЛЕНО: Правильный порядок обработки
         self.processing_order = [
             self._preprocess,
-            self._handle_structures,
-            self._handle_functions,      # ФУНКЦИИ ДО ОБЪЯВЛЕНИЙ!
-            self._handle_statements,      # ОПЕРАТОРЫ ДО ВЫРАЖЕНИЙ!
-            self._handle_declarations,
-            self._handle_expressions,
-            self._handle_syntax,
-            self._fix_indentation,        # НОВЫЙ ЭТАП
-            self._format_code
+            self._handle_structures,      # 1. Структуры первыми
+            self._handle_declarations,    # 2. Объявления переменных
+            self._handle_syntax,          # 3. Убираем { } ; РАНО!
+            self._handle_statements,      # 4. Циклы, условия
+            self._handle_expressions,     # 5. Операторы, указатели
+            self._handle_functions,       # 6. Функции ПОСЛЕ удаления скобок
+            self._fix_indentation,        # 7. Исправляем отступы
+            self._format_code             # 8. Финальное форматирование
         ]
     
     def _preprocess(self, code: str) -> str:
@@ -59,7 +63,7 @@ class CToPythonTranslator:
         # Сначала убираем точки с запятой
         code = re.sub(r';', '', code)
         
-        # Потом убираем фигурные скобки - они уже стали двоеточиями
+        # Потом убираем фигурные скобки
         code = re.sub(r'\{', '', code)
         code = re.sub(r'\}', '', code)
         
@@ -67,22 +71,34 @@ class CToPythonTranslator:
     
     def _fix_indentation(self, code: str) -> str:
         """
-        НОВАЯ ФУНКЦИЯ: Исправление отступов на основе структуры кода
+        ИСПРАВЛЕНО: Улучшенная обработка отступов
+        - elif/else на том же уровне что и if
+        - После return/break/continue правильное уменьшение отступа
+        - Учитываются пустые строки
         """
         lines = code.split('\n')
         result = []
         indent = 0
+        prev_was_block_end = False
         
-        for line in lines:
+        for i, line in enumerate(lines):
             stripped = line.strip()
             
+            # Пустые строки
             if not stripped:
                 result.append('')
                 continue
             
-            # Уменьшаем отступ для elif, else
+            # ИСПРАВЛЕНО: elif/else уменьшают отступ ПЕРЕД добавлением
             if stripped.startswith(('elif ', 'else:')):
                 indent = max(0, indent - 1)
+            
+            # ИСПРАВЛЕНО: После return/break/continue/pass следующая строка
+            # возвращается на уровень выше (если это не elif/else)
+            if prev_was_block_end:
+                if not stripped.startswith(('elif ', 'else:', 'except:', 'finally:')):
+                    indent = max(0, indent - 1)
+                prev_was_block_end = False
             
             # Добавляем строку с текущим отступом
             result.append('    ' * indent + stripped)
@@ -91,9 +107,10 @@ class CToPythonTranslator:
             if stripped.endswith(':'):
                 indent += 1
             
-            # Специальная обработка return, break, continue, pass
-            # После них отступ не меняется, но следующая строка может быть на уровень ниже
-            
+            # Помечаем завершающие операторы блока
+            if stripped.startswith(('return', 'break', 'continue', 'pass')):
+                prev_was_block_end = True
+        
         return '\n'.join(result)
     
     def _format_code(self, code: str) -> str:
@@ -136,9 +153,6 @@ class CToPythonTranslator:
         code = c_code
         for processor in self.processing_order:
             code = processor(code)
-            # DEBUG: раскомментируйте для отладки
-            # print(f"\n=== После {processor.__name__} ===")
-            # print(code[:500])
         return code
 
 def translate_c_to_python(c_code: str) -> str:
@@ -156,7 +170,7 @@ def translate_c_to_python(c_code: str) -> str:
 
 if __name__ == "__main__":
     print("=" * 60)
-    print("C to Python Translator")
+    print("C to Python Translator - ИСПРАВЛЕННАЯ ВЕРСИЯ")
     print("=" * 60)
     
     sample_c_code = """
@@ -212,6 +226,36 @@ if __name__ == "__main__":
     
     python_code = translate_c_to_python(sample_c_code)
     print(python_code)
+    
+    print("\n" + "=" * 60)
+    print("ПРОВЕРКА ИСПРАВЛЕНИЙ:")
+    print("=" * 60)
+    
+    # Проверка 1: printf заменен
+    if "print(" in python_code and "printf" not in python_code:
+        print("✓ Printf корректно заменен на print")
+    else:
+        print("✗ Ошибка: printf не заменен")
+    
+    # Проверка 2: p->name заменен
+    if "p.name" in python_code and "p->name" not in python_code:
+        print("✓ p->name корректно заменен на p.name")
+    else:
+        print("✗ Ошибка: p->name не заменен")
+    
+    # Проверка 3: Отступы
+    lines = python_code.split('\n')
+    if_lines = [l for l in lines if 'if ' in l and l.strip().startswith('if')]
+    else_lines = [l for l in lines if l.strip().startswith('else:')]
+    
+    if if_lines and else_lines:
+        if_indent = len(if_lines[0]) - len(if_lines[0].lstrip())
+        else_indent = len(else_lines[0]) - len(else_lines[0].lstrip())
+        
+        if if_indent == else_indent:
+            print(f"✓ Отступы корректны: if и else на уровне {if_indent}")
+        else:
+            print(f"✗ Ошибка отступов: if={if_indent}, else={else_indent}")
     
     print("\n" + "=" * 60)
     print("Трансляция завершена!")
